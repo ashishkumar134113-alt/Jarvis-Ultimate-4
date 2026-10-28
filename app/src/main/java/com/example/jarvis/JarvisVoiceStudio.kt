@@ -5,7 +5,6 @@ import android.graphics.Color
 import android.os.Bundle
 import android.speech.tts.TextToSpeech
 import android.view.Gravity
-import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -59,7 +58,7 @@ class JarvisVoiceStudio : Activity() {
         }
 
         val scroll = ScrollView(this).apply {
-            fillViewport = true
+            isFillViewport = true
             addView(root)
         }
 
@@ -80,11 +79,10 @@ class JarvisVoiceStudio : Activity() {
                 text = value
                 isAllCaps = false
                 setTextColor(white)
-                setBackgroundTintList(
+                backgroundTintList =
                     android.content.res.ColorStateList.valueOf(
                         Color.rgb(12, 65, 85)
                     )
-                )
                 setOnClickListener { action() }
             }
 
@@ -116,7 +114,7 @@ class JarvisVoiceStudio : Activity() {
 
         pitchSeek = SeekBar(this).apply {
             max = 150
-            progress = pitchToProgress(pitch)
+            progress = valueToProgress(pitch)
         }
 
         root.addView(pitchSeek)
@@ -150,7 +148,7 @@ class JarvisVoiceStudio : Activity() {
 
         speedSeek = SeekBar(this).apply {
             max = 150
-            progress = pitchToProgress(speed)
+            progress = valueToProgress(speed)
         }
 
         root.addView(speedSeek)
@@ -233,7 +231,7 @@ class JarvisVoiceStudio : Activity() {
         return 0.5f + (progress / 100f)
     }
 
-    private fun pitchToProgress(value: Float): Int {
+    private fun valueToProgress(value: Float): Int {
         return ((value - 0.5f) * 100f)
             .toInt()
             .coerceIn(0, 150)
@@ -259,8 +257,8 @@ class JarvisVoiceStudio : Activity() {
         newSpeed: Float
     ) {
 
-        pitchSeek.progress = pitchToProgress(newPitch)
-        speedSeek.progress = pitchToProgress(newSpeed)
+        pitchSeek.progress = valueToProgress(newPitch)
+        speedSeek.progress = valueToProgress(newSpeed)
 
         pitch = newPitch
         speed = newSpeed
