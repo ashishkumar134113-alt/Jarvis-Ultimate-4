@@ -89,6 +89,12 @@
 
         </activity>
 
+        <!-- NEW: SECURE AI SETTINGS -->
+
+        <activity
+            android:name=".JarvisApiSettings"
+            android:exported="false" />
+
         <!-- VOICE STUDIO -->
 
         <activity
