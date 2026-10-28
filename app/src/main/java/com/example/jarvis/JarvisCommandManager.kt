@@ -8,6 +8,8 @@ import java.util.Locale
 
 object JarvisCommandManager {
 
+    const val ONLINE_PREFIX = "__JARVIS_ONLINE__:"
+
     fun execute(
         context: Context,
         input: String
@@ -24,10 +26,7 @@ object JarvisCommandManager {
         val accessibility = JarvisAccessibility.active
 
         // HOME
-        if (
-            command.contains("होम") ||
-            command.contains("home")
-        ) {
+        if (command.contains("होम") || command.contains("home")) {
             return if (accessibility?.goHome() == true) {
                 "जी सर, होम स्क्रीन खोल दी है।"
             } else {
@@ -49,13 +48,8 @@ object JarvisCommandManager {
         }
 
         // RECENT APPS
-        if (
-            command.contains("रीसेंट") ||
-            command.contains("recent")
-        ) {
-            return if (
-                accessibility?.openRecentApps() == true
-            ) {
+        if (command.contains("रीसेंट") || command.contains("recent")) {
+            return if (accessibility?.openRecentApps() == true) {
                 "जी सर, रीसेंट ऐप्स खोल दिए।"
             } else {
                 "सर, मोबाइल कंट्रोल परमिशन चालू करें।"
@@ -67,9 +61,7 @@ object JarvisCommandManager {
             command.contains("नोटिफिकेशन") ||
             command.contains("notification")
         ) {
-            return if (
-                accessibility?.openNotifications() == true
-            ) {
+            return if (accessibility?.openNotifications() == true) {
                 "जी सर, नोटिफिकेशन खोल दिए।"
             } else {
                 "सर, यह कमांड उपलब्ध नहीं है।"
@@ -81,9 +73,7 @@ object JarvisCommandManager {
             command.contains("क्विक सेटिंग") ||
             command.contains("quick settings")
         ) {
-            return if (
-                accessibility?.openQuickSettings() == true
-            ) {
+            return if (accessibility?.openQuickSettings() == true) {
                 "जी सर, क्विक सेटिंग्स खोल दी हैं।"
             } else {
                 "सर, क्विक सेटिंग्स नहीं खुल सकीं।"
@@ -141,22 +131,12 @@ object JarvisCommandManager {
         }
 
         // CAMERA
-        if (
-            command.contains("कैमरा") ||
-            command.contains("camera")
-        ) {
-            return openApp(
-                context,
-                "com.android.camera",
-                "camera"
-            )
+        if (command.contains("कैमरा") || command.contains("camera")) {
+            return openApp(context, "com.android.camera", "कैमरा")
         }
 
         // YOUTUBE
-        if (
-            command.contains("यूट्यूब") ||
-            command.contains("youtube")
-        ) {
+        if (command.contains("यूट्यूब") || command.contains("youtube")) {
             return openApp(
                 context,
                 "com.google.android.youtube",
@@ -170,33 +150,21 @@ object JarvisCommandManager {
             command.contains("व्हाट्सप्प") ||
             command.contains("whatsapp")
         ) {
-            return openApp(
-                context,
-                "com.whatsapp",
-                "WhatsApp"
-            )
+            return openApp(context, "com.whatsapp", "WhatsApp")
         }
 
         // CHROME
-        if (
-            command.contains("क्रोम") ||
-            command.contains("chrome")
-        ) {
-            return openApp(
-                context,
-                "com.android.chrome",
-                "Chrome"
-            )
+        if (command.contains("क्रोम") || command.contains("chrome")) {
+            return openApp(context, "com.android.chrome", "Chrome")
         }
 
-        // PLAY STORE APP SEARCH
+        // PLAY STORE SEARCH
         if (
             command.contains("डाउनलोड") ||
             command.contains("download") ||
             command.contains("इंस्टॉल") ||
             command.contains("install")
         ) {
-
             val appName = command
                 .replace("डाउनलोड", "")
                 .replace("करो", "")
@@ -212,10 +180,7 @@ object JarvisCommandManager {
                 return "सर, किस ऐप को डाउनलोड करना है?"
             }
 
-            return searchPlayStore(
-                context,
-                appName
-            )
+            return searchPlayStore(context, appName)
         }
 
         // TAP VISIBLE LABEL
@@ -223,7 +188,6 @@ object JarvisCommandManager {
             command.startsWith("टैप करो ") ||
             command.startsWith("tap ")
         ) {
-
             val label = command
                 .removePrefix("टैप करो ")
                 .removePrefix("tap ")
@@ -233,17 +197,15 @@ object JarvisCommandManager {
                 return "सर, किस बटन पर टैप करना है?"
             }
 
-            return if (
-                accessibility?.tapLabel(label) == true
-            ) {
+            return if (accessibility?.tapLabel(label) == true) {
                 "जी सर, बटन पर टैप कर दिया।"
             } else {
                 "सर, यह बटन स्क्रीन पर नहीं मिला।"
             }
         }
 
-        // OFFLINE AI BRAIN
-        return JarvisOfflineBrain.reply(command)
+        // GENERAL QUESTIONS: HAND OFF TO ONLINE AI
+        return ONLINE_PREFIX + command
     }
 
     private fun openApp(
@@ -251,29 +213,18 @@ object JarvisCommandManager {
         packageName: String,
         appName: String
     ): String {
-
         return try {
-
             val intent = context.packageManager
                 .getLaunchIntentForPackage(packageName)
 
             if (intent != null) {
-
-                intent.addFlags(
-                    Intent.FLAG_ACTIVITY_NEW_TASK
-                )
-
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 context.startActivity(intent)
-
                 "जी सर, $appName खोल दिया है।"
-
             } else {
-
                 searchPlayStore(context, appName)
             }
-
-        } catch (e: Exception) {
-
+        } catch (_: Exception) {
             "सर, $appName नहीं खुल सका।"
         }
     }
@@ -283,19 +234,13 @@ object JarvisCommandManager {
         action: String,
         response: String
     ): String {
-
         return try {
-
             val intent = Intent(action).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-
             context.startActivity(intent)
-
             response
-
-        } catch (e: Exception) {
-
+        } catch (_: Exception) {
             "सर, यह सेटिंग नहीं खुल सकी।"
         }
     }
@@ -304,46 +249,32 @@ object JarvisCommandManager {
         context: Context,
         appName: String
     ): String {
-
         return try {
-
             val uri = Uri.parse(
-                "market://search?q=" +
-                    Uri.encode(appName) +
-                    "&c=apps"
+                "market://search?q=${Uri.encode(appName)}&c=apps"
             )
 
-            val intent = Intent(
-                Intent.ACTION_VIEW,
-                uri
-            ).apply {
+            val intent = Intent(Intent.ACTION_VIEW, uri).apply {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
 
             try {
-
                 context.startActivity(intent)
-
-            } catch (e: Exception) {
-
+            } catch (_: Exception) {
                 val webIntent = Intent(
                     Intent.ACTION_VIEW,
                     Uri.parse(
                         "https://play.google.com/store/search?q=" +
-                            Uri.encode(appName) +
-                            "&c=apps"
+                            Uri.encode(appName) + "&c=apps"
                     )
                 ).apply {
                     addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 }
-
                 context.startActivity(webIntent)
             }
 
             "जी सर, $appName को डाउनलोड करने के लिए स्टोर खोल दिया है।"
-
-        } catch (e: Exception) {
-
+        } catch (_: Exception) {
             "सर, अभी प्ले स्टोर नहीं खुल सका।"
         }
     }
