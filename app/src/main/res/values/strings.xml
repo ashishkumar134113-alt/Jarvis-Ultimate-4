@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<resources>
+
+    <!-- APPLICATION NAME -->
+
+    <string name="app_name">JARVIS ULTIMATE 4.0</string>
+
+    <!-- ACCESSIBILITY SERVICE -->
+
+    <string name="accessibility_description">JARVIS uses Accessibility Service to perform mobile control commands requested by the user, including Home, Back, scrolling, opening notifications and tapping visible screen buttons. Enable this service only if you want to use JARVIS mobile control.</string>
+
+    <!-- VOICE ASSISTANT -->
+
+    <string name="jarvis_voice_service">
+        JARVIS Voice Assistant
+    </string>
+
+    <string name="jarvis_listening">
+        JARVIS is listening
+    </string>
+
+    <string name="jarvis_ready">
+        JARVIS is ready
+    </string>
+
+    <!-- VOICE STUDIO -->
+
+    <string name="voice_studio_title">
+        JARVIS Voice Studio
+    </string>
+
+    <string name="save_voice">
+        Save Voice Settings
+    </string>
+
+    <!-- BUTTON LABELS -->
+
+    <string name="start_jarvis">
+        Start JARVIS
+    </string>
+
+    <string name="stop_jarvis">
+        Stop JARVIS
+    </string>
+
+    <string name="enable_mobile_control">
+        Enable Mobile Control
+    </string>
+
+</resources>
