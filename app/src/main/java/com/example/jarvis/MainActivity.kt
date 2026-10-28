@@ -32,9 +32,7 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
 
         initializeVoice()
-
         createJarvisUI()
-
         requestJarvisPermissions()
     }
 
@@ -83,11 +81,8 @@ class MainActivity : Activity() {
         val title = TextView(this)
 
         title.text = "J.A.R.V.I.S"
-
         title.textSize = 35f
-
         title.setTextColor(Color.CYAN)
-
         title.gravity = Gravity.CENTER
 
         title.setTypeface(
@@ -100,13 +95,9 @@ class MainActivity : Activity() {
         val subtitle = TextView(this)
 
         subtitle.text = "ULTIMATE AI ASSISTANT 4.0"
-
         subtitle.textSize = 15f
-
         subtitle.setTextColor(Color.WHITE)
-
         subtitle.gravity = Gravity.CENTER
-
         subtitle.setPadding(0, 12, 0, 45)
 
         layout.addView(subtitle)
@@ -114,13 +105,9 @@ class MainActivity : Activity() {
         statusText = TextView(this)
 
         statusText.text = "SYSTEM READY"
-
         statusText.textSize = 19f
-
         statusText.setTextColor(Color.GREEN)
-
         statusText.gravity = Gravity.CENTER
-
         statusText.setPadding(0, 15, 0, 35)
 
         layout.addView(statusText)
@@ -129,7 +116,6 @@ class MainActivity : Activity() {
             layout,
             "START JARVIS"
         ) {
-
             startJarvis()
         }
 
@@ -137,15 +123,21 @@ class MainActivity : Activity() {
             layout,
             "STOP JARVIS"
         ) {
-
             stopJarvis()
+        }
+
+        // NEW: Secure Backend Settings
+        addButton(
+            layout,
+            "SECURE AI SETTINGS"
+        ) {
+            openApiSettings()
         }
 
         addButton(
             layout,
             "JARVIS VOICE STUDIO"
         ) {
-
             openVoiceStudio()
         }
 
@@ -153,7 +145,6 @@ class MainActivity : Activity() {
             layout,
             "ENABLE MOBILE CONTROL"
         ) {
-
             startActivity(
                 Intent(
                     Settings.ACTION_ACCESSIBILITY_SETTINGS
@@ -165,7 +156,6 @@ class MainActivity : Activity() {
             layout,
             "GRANT PERMISSIONS"
         ) {
-
             requestJarvisPermissions()
         }
 
@@ -173,7 +163,6 @@ class MainActivity : Activity() {
             layout,
             "TEST JARVIS VOICE"
         ) {
-
             speak(
                 "जी सर, जार्विस अल्टीमेट आपके लिए तैयार है।"
             )
@@ -191,7 +180,7 @@ class MainActivity : Activity() {
         val button = Button(this)
 
         button.text = label
-
+        button.isAllCaps = false
         button.setTextColor(Color.WHITE)
 
         button.setBackgroundColor(
@@ -208,7 +197,6 @@ class MainActivity : Activity() {
         layout.addView(button, params)
 
         button.setOnClickListener {
-
             action()
         }
     }
@@ -221,9 +209,7 @@ class MainActivity : Activity() {
                 Manifest.permission.RECORD_AUDIO
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-
             requestJarvisPermissions()
-
             return
         }
 
@@ -254,6 +240,17 @@ class MainActivity : Activity() {
         statusText.text = "JARVIS STOPPED"
 
         speak("जी सर, जार्विस बंद कर दिया गया है।")
+    }
+
+    // NEW: Open Secure AI Settings
+    private fun openApiSettings() {
+
+        val intent = Intent(
+            this,
+            JarvisApiSettings::class.java
+        )
+
+        startActivity(intent)
     }
 
     private fun openVoiceStudio() {
@@ -340,7 +337,6 @@ class MainActivity : Activity() {
         if (::tts.isInitialized) {
 
             tts.stop()
-
             tts.shutdown()
         }
 
