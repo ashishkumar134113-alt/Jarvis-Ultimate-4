@@ -5,6 +5,8 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -69,8 +71,11 @@ object JarvisOnlineBrain {
 
     private fun isValidBackendUrl(url: String): Boolean {
 
-        val parsed = url.toHttpUrlOrNullSafe()
-            ?: return false
+        val parsed: HttpUrl = try {
+            url.toHttpUrlOrNull() ?: return false
+        } catch (_: Exception) {
+            return false
+        }
 
         return parsed.scheme == "https" &&
             parsed.host.isNotBlank() &&
@@ -78,16 +83,6 @@ object JarvisOnlineBrain {
             parsed.password.isEmpty() &&
             parsed.query == null &&
             parsed.fragment == null
-    }
-
-    private fun String.toHttpUrlOrNullSafe():
-        okhttp3.HttpUrl? {
-
-        return try {
-            okhttp3.HttpUrl.Companion.toHttpUrlOrNull(this)
-        } catch (_: Exception) {
-            null
-        }
     }
 
     // CHECK INTERNET
@@ -127,7 +122,7 @@ object JarvisOnlineBrain {
 
         val backend = getBackendUrl(context)
 
-        if (backend.isBlank()) {
+        if (backend.isBlank() || !isValidBackendUrl(backend)) {
             return@withContext offlineReply(
                 cleanQuestion,
                 "ऑनलाइन एआई सर्वर अभी सेट नहीं है।"
@@ -144,11 +139,8 @@ object JarvisOnlineBrain {
         try {
 
             val json = JSONObject().apply {
-
                 put("message", cleanQuestion)
-
                 put("language", "hi")
-
                 put("assistant", "JARVIS")
             }
 
@@ -159,16 +151,12 @@ object JarvisOnlineBrain {
             val request = Request.Builder()
                 .url("$backend/chat")
                 .post(body)
-                .header(
-                    "Accept",
-                    "application/json"
-                )
+                .header("Accept", "application/json")
                 .build()
 
             client.newCall(request).execute().use { response ->
 
                 if (!response.isSuccessful) {
-
                     return@withContext offlineReply(
                         cleanQuestion,
                         "एआई सर्वर ने जवाब नहीं दिया।"
