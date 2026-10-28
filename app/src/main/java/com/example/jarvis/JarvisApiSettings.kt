@@ -28,6 +28,7 @@ class JarvisApiSettings : Activity() {
     private lateinit var saveButton: Button
 
     private val screenJob = Job()
+
     private val scope = CoroutineScope(
         Dispatchers.Main + screenJob
     )
@@ -56,7 +57,6 @@ class JarvisApiSettings : Activity() {
         }
 
         val scroll = ScrollView(this).apply {
-            fillViewport = true
             addView(root)
         }
 
@@ -81,7 +81,14 @@ class JarvisApiSettings : Activity() {
                     android.content.res.ColorStateList.valueOf(
                         Color.rgb(12, 65, 85)
                     )
-                root.addView(this)
+
+                root.addView(
+                    this,
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    )
+                )
             }
         }
 
@@ -100,9 +107,10 @@ class JarvisApiSettings : Activity() {
             setHintTextColor(Color.GRAY)
             setTextColor(white)
             setSingleLine(true)
+
             inputType =
                 android.text.InputType.TYPE_CLASS_TEXT or
-                android.text.InputType.TYPE_TEXT_VARIATION_URI
+                    android.text.InputType.TYPE_TEXT_VARIATION_URI
 
             setText(
                 JarvisOnlineBrain.getBackendUrl(
@@ -111,7 +119,13 @@ class JarvisApiSettings : Activity() {
             )
         }
 
-        root.addView(urlInput)
+        root.addView(
+            urlInput,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        )
 
         statusText = TextView(this).apply {
             text = "Backend अभी टेस्ट नहीं हुआ है।"
@@ -185,7 +199,8 @@ class JarvisApiSettings : Activity() {
         }
 
         testButton.isEnabled = false
-        statusText.text = "Backend Connection टेस्ट हो रहा है..."
+        statusText.text =
+            "Backend Connection टेस्ट हो रहा है..."
 
         scope.launch {
 
@@ -197,8 +212,7 @@ class JarvisApiSettings : Activity() {
                         .get()
                         .build()
 
-                    client.newCall(request).execute().use {
-                        response ->
+                    client.newCall(request).execute().use { response ->
 
                         if (!response.isSuccessful) {
                             return@withContext false
@@ -211,10 +225,7 @@ class JarvisApiSettings : Activity() {
                         val json = JSONObject(body)
 
                         json.optString("status")
-                            .equals(
-                                "online",
-                                ignoreCase = true
-                            )
+                            .equals("online", ignoreCase = true)
                     }
 
                 } catch (_: Exception) {
@@ -225,15 +236,12 @@ class JarvisApiSettings : Activity() {
             testButton.isEnabled = true
 
             if (success) {
-
                 verifiedUrl = url
                 saveButton.isEnabled = true
 
                 statusText.text =
                     "Backend Connected! अब Save & Activate दबाएँ।"
-
             } else {
-
                 statusText.text =
                     "Connection Failed. Backend URL या /health जाँचें।"
             }
