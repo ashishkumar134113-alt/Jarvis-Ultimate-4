@@ -147,9 +147,9 @@ object JarvisOnlineBrain {
                 "models/gemini-2.5-flash-lite",
                 "models/gemini-2.0-flash"
             )
-            return preferred.firstOrNull { usable.contains(it) }
-                ?: usable.firstOrNull { it.contains("flash") }
-                ?: usable.firstOrNull()
+            return (preferred.filter { usable.contains(it) } +
+                usable.filter { it.contains("flash") } +
+                usable).distinct().joinToString("|")
         }
     }
 
@@ -165,8 +165,11 @@ object JarvisOnlineBrain {
                 return@withContext "जी सर, इंटरनेट कनेक्शन जाँचिए।"
             }
             try {
-                val model = findModel(apiKey)
-                    ?: return@withContext "जी सर, इस API Key के लिए कोई उपलब्ध Gemini टेक्स्ट मॉडल नहीं मिला।"
+                val modelNames = findModel(apiKey)
+                    ?.split("|")?.filter { it.isNotBlank() }.orEmpty()
+                if (modelNames.isEmpty()) {
+                    return@withContext "जी सर, इस API Key के लिए कोई उपलब्ध Gemini टेक्स्ट मॉडल नहीं मिला।"
+                }
 
                 val body = JSONObject()
                     .put("contents", JSONArray().put(
@@ -183,36 +186,45 @@ object JarvisOnlineBrain {
                         .put("temperature", 0.7)
                         .put("maxOutputTokens", 800))
 
-                val request = Request.Builder()
-                    .url("$BASE_URL/$model:generateContent")
-                    .header("x-goog-api-key", apiKey)
-                    .post(body.toString().toRequestBody(
-                        "application/json; charset=utf-8".toMediaType()
-                    ))
-                    .build()
-
-                client.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        throw GeminiHttpException(response.code)
-                    }
-                    val json = JSONObject(response.body?.string().orEmpty())
-                    val parts = json.optJSONArray("candidates")
-                        ?.optJSONObject(0)
-                        ?.optJSONObject("content")
-                        ?.optJSONArray("parts")
-                    val answer = buildString {
-                        if (parts != null) {
-                            for (i in 0 until parts.length()) {
-                                val piece = parts.optJSONObject(i)?.optString("text").orEmpty()
-                                if (piece.isNotBlank()) {
-                                    if (isNotEmpty()) append("\n")
-                                    append(piece)
+                var lastStatus = 404
+                for (model in modelNames) {
+                    val request = Request.Builder()
+                        .url("$BASE_URL/$model:generateContent")
+                        .header("x-goog-api-key", apiKey)
+                        .post(body.toString().toRequestBody(
+                            "application/json; charset=utf-8".toMediaType()
+                        ))
+                        .build()
+                    client.newCall(request).execute().use { response ->
+                        if (response.code == 404) {
+                            lastStatus = 404
+                            return@use
+                        }
+                        if (!response.isSuccessful) {
+                            throw GeminiHttpException(response.code)
+                        }
+                        val json = JSONObject(response.body?.string().orEmpty())
+                        val parts = json.optJSONArray("candidates")
+                            ?.optJSONObject(0)
+                            ?.optJSONObject("content")
+                            ?.optJSONArray("parts")
+                        val answer = buildString {
+                            if (parts != null) {
+                                for (i in 0 until parts.length()) {
+                                    val piece = parts.optJSONObject(i)?.optString("text").orEmpty()
+                                    if (piece.isNotBlank()) {
+                                        if (isNotEmpty()) append("\n")
+                                        append(piece)
+                                    }
                                 }
                             }
                         }
+                        return@withContext answer.ifBlank {
+                            "जी सर, इस बार जवाब नहीं मिला। फिर पूछिए।"
+                        }
                     }
-                    answer.ifBlank { "जी सर, इस बार जवाब नहीं मिला। फिर पूछिए।" }
                 }
+                throw GeminiHttpException(lastStatus)
             } catch (error: GeminiHttpException) {
                 when (error.status) {
                     400 -> "जी सर, Gemini अनुरोध सही नहीं है। त्रुटि 400।"
