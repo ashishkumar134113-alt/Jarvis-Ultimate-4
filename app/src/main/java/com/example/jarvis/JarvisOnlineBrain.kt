@@ -14,7 +14,6 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
-import java.io.IOException
 import java.security.KeyStore
 import java.util.concurrent.TimeUnit
 import javax.crypto.Cipher
@@ -29,18 +28,14 @@ object JarvisOnlineBrain {
     private const val BACKEND_KEY = "backend_url"
     private const val KEYSTORE = "AndroidKeyStore"
     private const val KEY_ALIAS = "JarvisGeminiKeyEncryption"
-
-    private const val MODEL = "gemini-2.5-flash"
-    private const val API_URL =
-        "https://generativelanguage.googleapis.com/v1beta/models/$MODEL:generateContent"
+    private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(45, TimeUnit.SECONDS)
-        .callTimeout(60, TimeUnit.SECONDS)
         .build()
 
-    // Saving is local only: it never calls the Gemini server.
+    // Saving a key is local-only; it does not contact Gemini.
     fun saveApiKey(context: Context, apiKey: String): Boolean {
         val key = apiKey.trim()
         if (key.length < 10) return false
@@ -61,7 +56,7 @@ object JarvisOnlineBrain {
 
     fun clearApiKey(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .edit().remove(API_KEY_NAME).commit()
+            .edit().remove(API_KEY_NAME).apply()
     }
 
     private fun readApiKey(context: Context): String? {
@@ -87,7 +82,10 @@ object JarvisOnlineBrain {
         store.load(null)
         val existing = store.getKey(KEY_ALIAS, null)
         if (existing is SecretKey) return existing
-        val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, KEYSTORE)
+
+        val generator = KeyGenerator.getInstance(
+            KeyProperties.KEY_ALGORITHM_AES, KEYSTORE
+        )
         generator.init(
             KeyGenParameterSpec.Builder(
                 KEY_ALIAS,
@@ -103,8 +101,9 @@ object JarvisOnlineBrain {
 
     fun isInternetAvailable(context: Context): Boolean {
         return try {
-            val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE)
-                as ConnectivityManager
+            val manager = context.getSystemService(
+                Context.CONNECTIVITY_SERVICE
+            ) as ConnectivityManager
             val network = manager.activeNetwork ?: return false
             manager.getNetworkCapabilities(network)?.hasCapability(
                 NetworkCapabilities.NET_CAPABILITY_INTERNET
@@ -114,68 +113,122 @@ object JarvisOnlineBrain {
         }
     }
 
-    suspend fun ask(context: Context, question: String): String = withContext(Dispatchers.IO) {
-        val apiKey = readApiKey(context)
-        if (apiKey.isNullOrBlank()) {
-            return@withContext JarvisOfflineBrain.reply(question)
-        }
-        if (!isInternetAvailable(context)) {
-            return@withContext "जी सर, इंटरनेट उपलब्ध नहीं है।"
-        }
-
-        try {
-            val body = JSONObject()
-                .put("contents", JSONArray().put(
-                    JSONObject().put("role", "user").put("parts", JSONArray().put(
-                        JSONObject().put("text", "तुम JARVIS हो। हिंदी में सरल, उपयोगी और सुरक्षित जवाब दो।\n\nप्रश्न: $question")
-                    ))
-                ))
-                .put("generationConfig", JSONObject()
-                    .put("temperature", 0.7)
-                    .put("maxOutputTokens", 800))
-
-            val request = Request.Builder()
-                .url(API_URL)
-                .header("x-goog-api-key", apiKey)
-                .post(body.toString().toRequestBody("application/json; charset=utf-8".toMediaType()))
-                .build()
-
-            client.newCall(request).execute().use { response ->
-                val result = response.body?.string().orEmpty()
-                if (!response.isSuccessful) {
-                    return@withContext when (response.code) {
-                        400 -> "जी सर, Gemini अनुरोध में समस्या है। API Key और अनुरोध जाँचें।"
-                        401, 403 -> "जी सर, Gemini API Key या उसकी अनुमति सही नहीं है।"
-                        404 -> "जी सर, चुना गया Gemini मॉडल उपलब्ध नहीं है। ऐप का मॉडल अपडेट करें।"
-                        429 -> "जी सर, Gemini की इस्तेमाल सीमा पूरी हो गई है। थोड़ी देर बाद कोशिश करें।"
-                        500, 502, 503, 504 -> "जी सर, Gemini सर्वर अभी उपलब्ध नहीं है। त्रुटि ${response.code}। थोड़ी देर बाद कोशिश करें। आपकी सेव API Key नहीं हटाई गई है।"
-                        else -> "जी सर, Gemini ने त्रुटि ${response.code} लौटाई है।"
-                    }
-                }
-
-                val parts = JSONObject(result).optJSONArray("candidates")
-                    ?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts")
-                val answer = buildString {
-                    if (parts != null) {
-                        for (i in 0 until parts.length()) {
-                            val piece = parts.optJSONObject(i)?.optString("text").orEmpty()
-                            if (piece.isNotBlank()) {
-                                if (isNotEmpty()) append("\n")
-                                append(piece)
-                            }
-                        }
-                    }
-                }
-                answer.ifBlank { "जी सर, इस बार Gemini से जवाब नहीं मिला। फिर से पूछिए।" }
+    // Ask Gemini which models this particular API key can use.
+    private fun findModel(apiKey: String): String? {
+        val request = Request.Builder()
+            .url("$BASE_URL/models?pageSize=100")
+            .header("x-goog-api-key", apiKey)
+            .get()
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw GeminiHttpException(response.code)
             }
-        } catch (_: IOException) {
-            "जी सर, इंटरनेट या Gemini सर्वर से संपर्क नहीं हो पाया। थोड़ी देर बाद कोशिश करें।"
-        } catch (_: Exception) {
-            "जी सर, Gemini का जवाब पढ़ने में समस्या हुई।"
+            val models = JSONObject(response.body?.string().orEmpty())
+                .optJSONArray("models") ?: return null
+            val usable = mutableListOf<String>()
+            for (i in 0 until models.length()) {
+                val model = models.optJSONObject(i) ?: continue
+                val methods = model.optJSONArray("supportedGenerationMethods") ?: continue
+                var supportsGenerate = false
+                for (j in 0 until methods.length()) {
+                    if (methods.optString(j) == "generateContent") {
+                        supportsGenerate = true
+                        break
+                    }
+                }
+                val name = model.optString("name")
+                if (supportsGenerate && name.startsWith("models/gemini-")) {
+                    usable.add(name)
+                }
+            }
+            val preferred = listOf(
+                "models/gemini-2.5-flash",
+                "models/gemini-2.5-flash-lite",
+                "models/gemini-2.0-flash"
+            )
+            return preferred.firstOrNull { usable.contains(it) }
+                ?: usable.firstOrNull { it.contains("flash") }
+                ?: usable.firstOrNull()
         }
     }
 
-    // Compatibility with older project code; not used for Gemini API requests.
+    private class GeminiHttpException(val status: Int) : Exception()
+
+    suspend fun ask(context: Context, question: String): String =
+        withContext(Dispatchers.IO) {
+            val apiKey = readApiKey(context)
+            if (apiKey.isNullOrBlank()) {
+                return@withContext JarvisOfflineBrain.reply(question)
+            }
+            if (!isInternetAvailable(context)) {
+                return@withContext "जी सर, इंटरनेट कनेक्शन जाँचिए।"
+            }
+            try {
+                val model = findModel(apiKey)
+                    ?: return@withContext "जी सर, इस API Key के लिए कोई उपलब्ध Gemini टेक्स्ट मॉडल नहीं मिला।"
+
+                val body = JSONObject()
+                    .put("contents", JSONArray().put(
+                        JSONObject().put("role", "user").put(
+                            "parts", JSONArray().put(
+                                JSONObject().put(
+                                    "text",
+                                    "तुम JARVIS हो। हिंदी में सरल, उपयोगी और सुरक्षित जवाब दो।\n\nप्रश्न: $question"
+                                )
+                            )
+                        )
+                    ))
+                    .put("generationConfig", JSONObject()
+                        .put("temperature", 0.7)
+                        .put("maxOutputTokens", 800))
+
+                val request = Request.Builder()
+                    .url("$BASE_URL/$model:generateContent")
+                    .header("x-goog-api-key", apiKey)
+                    .post(body.toString().toRequestBody(
+                        "application/json; charset=utf-8".toMediaType()
+                    ))
+                    .build()
+
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw GeminiHttpException(response.code)
+                    }
+                    val json = JSONObject(response.body?.string().orEmpty())
+                    val parts = json.optJSONArray("candidates")
+                        ?.optJSONObject(0)
+                        ?.optJSONObject("content")
+                        ?.optJSONArray("parts")
+                    val answer = buildString {
+                        if (parts != null) {
+                            for (i in 0 until parts.length()) {
+                                val piece = parts.optJSONObject(i)?.optString("text").orEmpty()
+                                if (piece.isNotBlank()) {
+                                    if (isNotEmpty()) append("\n")
+                                    append(piece)
+                                }
+                            }
+                        }
+                    }
+                    answer.ifBlank { "जी सर, इस बार जवाब नहीं मिला। फिर पूछिए।" }
+                }
+            } catch (error: GeminiHttpException) {
+                when (error.status) {
+                    400 -> "जी सर, Gemini अनुरोध सही नहीं है। त्रुटि 400।"
+                    401, 403 -> "जी सर, Gemini API Key या उसकी अनुमति जाँचें। त्रुटि ${error.status}।"
+                    404 -> "जी सर, Gemini मॉडल उपलब्ध नहीं मिला। त्रुटि 404।"
+                    429 -> "जी सर, Gemini की इस्तेमाल सीमा पूरी हो गई है। त्रुटि 429।"
+                    500, 502, 503, 504 ->
+                        "जी सर, Gemini सर्वर अभी उपलब्ध नहीं है। थोड़ी देर बाद कोशिश करें। त्रुटि ${error.status}।"
+                    else -> "जी सर, Gemini ने त्रुटि ${error.status} लौटाई।"
+                }
+            } catch (_: Exception) {
+                "जी सर, Gemini कनेक्शन में समस्या है। इंटरनेट जाँचकर फिर कोशिश करें।"
+            }
+        }
+
+    // Compatibility with older backend settings.
     fun saveBackendUrl(context: Context, url: String): Boolean {
         val clean = url.trim()
         if (!clean.startsWith("https://")) return false
