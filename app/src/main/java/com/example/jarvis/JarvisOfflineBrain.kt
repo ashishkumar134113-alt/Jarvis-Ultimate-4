@@ -9,146 +9,65 @@ import java.util.Date
 import java.util.Locale
 
 object JarvisOfflineBrain {
+    // Existing calls continue to compile. Learning requires the Context overload below.
+    fun reply(command: String): String = basicReply(command)
 
-    fun reply(command: String): String {
-
-        val text = command.lowercase(
-            Locale.ROOT
-        ).trim()
-
-        if (text.isBlank()) {
-            return "जी सर, बताइए।"
+    /** Use this overload in voice service to enable persistent learning. */
+    fun reply(context: Context, command: String): String {
+        val raw = command.trim()
+        val text = raw.lowercase(Locale.ROOT)
+        if (text.startsWith("याद रखो ") || text.startsWith("सीखो ") || text.startsWith("learn ")) {
+            val payload = raw.substringAfter(' ').trim()
+            val separator = when {
+                payload.contains(" = ") -> " = "
+                payload.contains(" मतलब ") -> " मतलब "
+                else -> null
+            }
+            if (separator == null) return "सर, ऐसे सिखाएँ: याद रखो मेरा पसंदीदा ऐप = म्यूजिक ऐप"
+            val question = payload.substringBefore(separator).trim()
+            val answer = payload.substringAfter(separator).trim()
+            return if (JarvisLearningMemory.teach(context, question, answer))
+                "जी सर, आपकी बताई बात मैंने इस फोन में याद रख ली है।"
+            else "सर, यह बात सेव नहीं हुई। निजी PIN, OTP, पासवर्ड या API Key याद नहीं रखता; सवाल छोटा रखें।"
         }
-
-        // JARVIS IDENTITY
-        if (
-            text.contains("तुम कौन हो") ||
-            text.contains("आप कौन हो") ||
-            text.contains("who are you")
-        ) {
-            return "जी सर, मैं जार्विस अल्टीमेट 4.0 हूँ। आपका पर्सनल एआई असिस्टेंट।"
+        if (text.startsWith("भूल जाओ ") || text.startsWith("forget ")) {
+            val question = raw.substringAfter(' ').trim()
+            return if (JarvisLearningMemory.forget(context, question))
+                "जी सर, वह सीखी हुई बात हटा दी है।"
+            else "सर, उस नाम से कोई सीखी हुई बात नहीं मिली।"
         }
-
-        // JARVIS NAME
-        if (
-            text.contains("तुम्हारा नाम") ||
-            text.contains("आपका नाम") ||
-            text.contains("what is your name") ||
-            text.contains("your name")
-        ) {
-            return "सर, मेरा नाम जार्विस है।"
-        }
-
-        // GREETING
-        if (
-            text.contains("नमस्ते") ||
-            text.contains("hello") ||
-            text.contains("हेलो") ||
-            text.contains("good morning")
-        ) {
-            return "नमस्ते सर, मैं आपकी क्या सहायता कर सकता हूँ?"
-        }
-
-        // HOW ARE YOU
-        if (
-            text.contains("कैसे हो") ||
-            text.contains("how are you")
-        ) {
-            return "मैं ठीक हूँ सर। सभी सिस्टम तैयार हैं।"
-        }
-
-        // INDIA CAPITAL
-        if (
-            text.contains("भारत की राजधानी") ||
-            text.contains("capital of india")
-        ) {
-            return "भारत की राजधानी नई दिल्ली है।"
-        }
-
-        // DATE
-        if (
-            text.contains("आज की तारीख") ||
-            text.contains("तारीख बताओ") ||
-            text.contains("today date") ||
-            text.contains("what is the date")
-        ) {
-
-            val format = SimpleDateFormat(
-                "dd MMMM yyyy",
-                Locale("hi", "IN")
-            )
-
-            return "सर, आज की तारीख ${
-                format.format(Date())
-            } है।"
-        }
-
-        // TIME
-        if (
-            text.contains("कितने बजे") ||
-            text.contains("समय बताओ") ||
-            text.contains("what time") ||
-            text == "time"
-        ) {
-
-            val format = SimpleDateFormat(
-                "hh:mm a",
-                Locale("hi", "IN")
-            )
-
-            return "सर, अभी ${
-                format.format(Date())
-            } बजे हैं।"
-        }
-
-        // THANK YOU
-        if (
-            text.contains("धन्यवाद") ||
-            text.contains("शुक्रिया") ||
-            text.contains("thank you") ||
-            text.contains("thanks")
-        ) {
-            return "आपका स्वागत है सर।"
-        }
-
-        // HELP
-        if (
-            text.contains("क्या कर सकते हो") ||
-            text.contains("help") ||
-            text.contains("कमांड बताओ")
-        ) {
-            return "सर, मैं मोबाइल ऐप खोल सकता हूँ, होम जा सकता हूँ, स्क्रीन स्क्रॉल कर सकता हूँ, सेटिंग खोल सकता हूँ और सामान्य सवालों के जवाब दे सकता हूँ।"
-        }
-
-        // ONLINE AI FALLBACK
-        return "सर, यह सवाल मेरे ऑफलाइन ज्ञान में नहीं है। ऑनलाइन एआई ब्रेन से जवाब लेने के लिए इंटरनेट कनेक्शन और ऑनलाइन एआई सेटअप की जरूरत होगी।"
+        JarvisLearningMemory.recall(context, raw)?.let { return it }
+        return basicReply(raw)
     }
 
-    fun getBatteryPercentage(
-        context: Context
-    ): Int {
+    private fun basicReply(command: String): String {
+        val text = command.lowercase(Locale.ROOT).trim()
+        if (text.isBlank()) return "जी सर, बताइए।"
+        if (listOf("तुम कौन हो", "आप कौन हो", "who are you").any(text::contains))
+            return "जी सर, मैं जार्विस अल्टीमेट 4.0 हूँ। आपका पर्सनल असिस्टेंट।"
+        if (listOf("तुम्हारा नाम", "आपका नाम", "what is your name", "your name").any(text::contains))
+            return "सर, मेरा नाम जार्विस है।"
+        if (listOf("नमस्ते", "hello", "हेलो", "good morning").any(text::contains))
+            return "नमस्ते सर, मैं आपकी क्या सहायता कर सकता हूँ?"
+        if (listOf("कैसे हो", "how are you").any(text::contains))
+            return "मैं ठीक हूँ सर। सभी सिस्टम तैयार हैं।"
+        if (listOf("भारत की राजधानी", "capital of india").any(text::contains))
+            return "भारत की राजधानी नई दिल्ली है।"
+        if (listOf("आज की तारीख", "तारीख बताओ", "today date", "what is the date").any(text::contains))
+            return "सर, आज की तारीख ${SimpleDateFormat("dd MMMM yyyy", Locale("hi", "IN")).format(Date())} है।"
+        if (listOf("कितने बजे", "समय बताओ", "what time").any(text::contains) || text == "time")
+            return "सर, अभी ${SimpleDateFormat("hh:mm a", Locale("hi", "IN")).format(Date())} बजे हैं।"
+        if (listOf("धन्यवाद", "शुक्रिया", "thank you", "thanks").any(text::contains))
+            return "आपका स्वागत है सर।"
+        if (listOf("क्या कर सकते हो", "help", "कमांड बताओ").any(text::contains))
+            return "सर, मैं मोबाइल कमांड में सहायता कर सकता हूँ। मुझे सिखाने के लिए बोलें: याद रखो सवाल = जवाब।"
+        return "सर, यह बात अभी मेरे ऑफलाइन ज्ञान में नहीं है। आप मुझे सिखा सकते हैं: याद रखो सवाल = जवाब।"
+    }
 
-        val batteryStatus = context.registerReceiver(
-            null,
-            IntentFilter(
-                Intent.ACTION_BATTERY_CHANGED
-            )
-        )
-
-        val level = batteryStatus?.getIntExtra(
-            BatteryManager.EXTRA_LEVEL,
-            -1
-        ) ?: -1
-
-        val scale = batteryStatus?.getIntExtra(
-            BatteryManager.EXTRA_SCALE,
-            -1
-        ) ?: -1
-
-        if (level < 0 || scale <= 0) {
-            return -1
-        }
-
-        return (level * 100) / scale
+    fun getBatteryPercentage(context: Context): Int {
+        val status = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
+        val level = status?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
+        val scale = status?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
+        return if (level < 0 || scale <= 0) -1 else level * 100 / scale
     }
 }
