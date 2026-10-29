@@ -24,7 +24,6 @@ import java.security.MessageDigest
 import java.util.Locale
 
 class JarvisVoiceService : Service(), RecognitionListener {
-
     companion object {
         const val ACTION_STOP = "com.example.jarvis.STOP"
         private const val CHANNEL_ID = "jarvis_voice"
@@ -33,18 +32,14 @@ class JarvisVoiceService : Service(), RecognitionListener {
 
     private val handler = Handler(Looper.getMainLooper())
     private val serviceJob = SupervisorJob()
-    private val serviceScope =
-        CoroutineScope(serviceJob + Dispatchers.Main)
-
+    private val serviceScope = CoroutineScope(serviceJob + Dispatchers.Main)
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
-
     private var running = false
     private var listening = false
     private var speaking = false
     private var ttsReady = false
     private var processingOnline = false
-
     private var awaitingApiPin = false
     private var pinAttempts = 0
     private var restartTask: Runnable? = null
@@ -62,74 +57,45 @@ class JarvisVoiceService : Service(), RecognitionListener {
         initializeVoice()
     }
 
-    override fun onStartCommand(
-        intent: Intent?,
-        flags: Int,
-        startId: Int
-    ): Int {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == ACTION_STOP) {
             stopSelf()
             return START_NOT_STICKY
         }
-
         startForeground(NOTIFICATION_ID, createNotification())
-
         if (!running) {
             running = true
             initializeRecognizer()
             scheduleListening(500)
         }
-
         return START_NOT_STICKY
     }
 
     private fun createChannel() {
         val channel = NotificationChannel(
-            CHANNEL_ID,
-            "JARVIS Voice Assistant",
-            NotificationManager.IMPORTANCE_LOW
+            CHANNEL_ID, "JARVIS Voice Assistant", NotificationManager.IMPORTANCE_LOW
         )
-
-        getSystemService(NotificationManager::class.java)
-            .createNotificationChannel(channel)
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
     private fun createNotification(): Notification {
-        val stopIntent = Intent(
-            this,
-            JarvisVoiceService::class.java
-        ).apply {
+        val stopIntent = Intent(this, JarvisVoiceService::class.java).apply {
             action = ACTION_STOP
         }
-
         val stopPending = PendingIntent.getService(
-            this,
-            1,
-            stopIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                PendingIntent.FLAG_IMMUTABLE
+            this, 1, stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
-        val openIntent = Intent(this, MainActivity::class.java)
-
         val openPending = PendingIntent.getActivity(
-            this,
-            2,
-            openIntent,
-            PendingIntent.FLAG_UPDATE_CURRENT or
-                PendingIntent.FLAG_IMMUTABLE
+            this, 2, Intent(this, MainActivity::class.java),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
-
         return Notification.Builder(this, CHANNEL_ID)
             .setContentTitle("JARVIS ULTIMATE 4.0")
             .setContentText("Voice Assistant Active")
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentIntent(openPending)
-            .addAction(
-                android.R.drawable.ic_media_pause,
-                "STOP",
-                stopPending
-            )
+            .addAction(android.R.drawable.ic_media_pause, "STOP", stopPending)
             .setOngoing(true)
             .build()
     }
@@ -145,11 +111,7 @@ class JarvisVoiceService : Service(), RecognitionListener {
     }
 
     private fun applyVoiceSettings() {
-        val prefs = getSharedPreferences(
-            "jarvis_voice",
-            MODE_PRIVATE
-        )
-
+        val prefs = getSharedPreferences("jarvis_voice", MODE_PRIVATE)
         tts?.setPitch(prefs.getFloat("pitch", 1.0f))
         tts?.setSpeechRate(prefs.getFloat("speed", 1.0f))
     }
@@ -159,44 +121,29 @@ class JarvisVoiceService : Service(), RecognitionListener {
             speak("सर, वॉइस रिकग्निशन उपलब्ध नहीं है।")
             return
         }
-
         recognizer = SpeechRecognizer.createSpeechRecognizer(this)
         recognizer?.setRecognitionListener(this)
     }
 
     private fun scheduleListening(delay: Long) {
-        if (!running || processingOnline || awaitingApiPin) {
-            return
-        }
-
+        if (!running || processingOnline || awaitingApiPin) return
         restartTask?.let { handler.removeCallbacks(it) }
-
         val task = Runnable { startListening() }
         restartTask = task
         handler.postDelayed(task, delay)
     }
 
     private fun startListening() {
-        if (
-            !running ||
-            listening ||
-            speaking ||
-            processingOnline ||
-            recognizer == null
-        ) {
-            return
+        if (!running || listening || speaking || processingOnline || recognizer == null) return
+        val speechIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+            putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+            )
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
+            putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
-
-        val speechIntent =
-            Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(
-                    RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-                    RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-                )
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "hi-IN")
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false)
-            }
-
         try {
             listening = true
             recognizer?.startListening(speechIntent)
@@ -206,10 +153,7 @@ class JarvisVoiceService : Service(), RecognitionListener {
         }
     }
 
-    override fun onReadyForSpeech(params: Bundle?) {
-        listening = true
-    }
-
+    override fun onReadyForSpeech(params: Bundle?) { listening = true }
     override fun onBeginningOfSpeech() {}
     override fun onRmsChanged(rmsdB: Float) {}
     override fun onBufferReceived(buffer: ByteArray?) {}
@@ -217,19 +161,16 @@ class JarvisVoiceService : Service(), RecognitionListener {
 
     override fun onError(error: Int) {
         listening = false
-
         if (!running || processingOnline) return
-
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
             stopSelf()
             return
         }
-
         if (awaitingApiPin) {
-            scheduleListening(500)
+            // PIN timeout remains active; resume listening without clearing the request.
+            handler.postDelayed({ if (running && awaitingApiPin) startListening() }, 500)
             return
         }
-
         scheduleListening(
             when (error) {
                 SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> 2000L
@@ -242,20 +183,13 @@ class JarvisVoiceService : Service(), RecognitionListener {
 
     override fun onResults(results: Bundle?) {
         listening = false
-
         val spokenText = results
-            ?.getStringArrayList(
-                SpeechRecognizer.RESULTS_RECOGNITION
-            )
-            ?.firstOrNull()
-            ?.trim()
-            .orEmpty()
-
-        if (spokenText.isNotBlank()) {
-            processCommand(spokenText)
-        } else {
-            scheduleListening(700)
-        }
+            ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+            ?.firstOrNull()?.trim().orEmpty()
+        if (spokenText.isNotBlank()) processCommand(spokenText)
+        else if (awaitingApiPin) {
+            handler.postDelayed({ if (running && awaitingApiPin) startListening() }, 700)
+        } else scheduleListening(700)
     }
 
     override fun onPartialResults(partialResults: Bundle?) {}
@@ -266,153 +200,112 @@ class JarvisVoiceService : Service(), RecognitionListener {
             verifySpokenPin(text)
             return
         }
-
         var command = text.lowercase(Locale.ROOT)
-
-        val wakeWords = listOf(
-            "hey jarvis",
-            "हे जार्विस",
-            "जार्विस",
-            "jarvis"
-        )
-
+        val wakeWords = listOf("hey jarvis", "हे जार्विस", "जार्विस", "jarvis")
         if (wakeWords.none { command.contains(it) }) {
             scheduleListening(400)
             return
         }
-
-        wakeWords.forEach {
-            command = command.replace(it, "")
-        }
-
+        wakeWords.forEach { command = command.replace(it, "") }
         command = command.trim()
-
         if (command.isBlank()) {
             speak("जी सर, बताइए।")
             return
         }
-
-        if (
-            command.contains("बंद हो जाओ") ||
-            command.contains("stop jarvis")
-        ) {
+        if (command.contains("बंद हो जाओ") || command.contains("stop jarvis")) {
             speak("जी सर, जार्विस बंद कर रहा हूँ।")
             handler.postDelayed({ stopSelf() }, 1500)
             return
         }
-
         if (isApiSettingsCommand(command)) {
             requestApiPin()
             return
         }
 
-        val response = JarvisCommandManager.execute(
-            this,
-            command
-        )
-
-        if (response.startsWith(JarvisCommandManager.ONLINE_PREFIX)) {
-            val question = response
-                .removePrefix(JarvisCommandManager.ONLINE_PREFIX)
-                .trim()
-
-            askOnlineAI(question)
+        // Learning commands are handled locally before mobile commands or Gemini.
+        val isLearningCommand = listOf(
+            "याद रखो ", "सीखो ", "learn ", "भूल जाओ ", "forget "
+        ).any { command.startsWith(it) }
+        if (isLearningCommand) {
+            speak(JarvisOfflineBrain.reply(this, command))
             return
         }
 
-        if (response.isNotBlank()) {
-            speak(response)
-        } else {
-            scheduleListening(600)
+        // Exact matches in user-approved local memory take priority.
+        val learned = JarvisLearningMemory.recall(this, command)
+        if (learned != null) {
+            speak(learned)
+            return
         }
+
+        val response = JarvisCommandManager.execute(this, command)
+        if (response.startsWith(JarvisCommandManager.ONLINE_PREFIX)) {
+            val question = response
+                .removePrefix(JarvisCommandManager.ONLINE_PREFIX).trim()
+            // For now prefer the offline knowledge brain, without a Gemini call.
+            speak(JarvisOfflineBrain.reply(this, question))
+            return
+        }
+        if (response.isNotBlank()) speak(response)
+        else scheduleListening(600)
     }
 
     private fun isApiSettingsCommand(command: String): Boolean {
-        val hasApi = command.contains("api") ||
-            command.contains("एपीआई")
-
+        val hasApi = command.contains("api") || command.contains("एपीआई")
         val hasSettings = command.contains("सेटिंग") ||
-            command.contains("settings") ||
-            command.contains("सेटिंग्स")
-
+            command.contains("settings") || command.contains("सेटिंग्स")
         val hasOpenWord = command.contains("खोल") ||
-            command.contains("open") ||
-            command.contains("दिखा")
-
+            command.contains("open") || command.contains("दिखा")
         return hasApi && hasSettings && hasOpenWord
     }
 
     private fun requestApiPin() {
         val savedHash = getSharedPreferences(
-            "jarvis_api_security",
-            MODE_PRIVATE
+            "jarvis_api_security", MODE_PRIVATE
         ).getString("settings_pin_hash", null)
-
         if (savedHash.isNullOrBlank()) {
             speak("जी सर, पहले ऐप की स्क्रीन पर अपना सुरक्षा PIN सेट करें।")
             return
         }
-
         awaitingApiPin = true
         pinAttempts = 0
-
         handler.removeCallbacks(pinTimeoutTask)
         handler.postDelayed(pinTimeoutTask, 20000)
-
         speak("जी सर, API सेटिंग खोलने के लिए अपना सुरक्षा PIN बोलिए।")
     }
 
     private fun verifySpokenPin(spokenText: String) {
         val pin = convertSpeechToPin(spokenText)
-
         if (!pin.matches(Regex("\\d{4,6}"))) {
             recordFailedPin()
             return
         }
-
         val savedHash = getSharedPreferences(
-            "jarvis_api_security",
-            MODE_PRIVATE
+            "jarvis_api_security", MODE_PRIVATE
         ).getString("settings_pin_hash", null)
-
-        val enteredHash = sha256(pin)
-
-        if (
-            savedHash != null &&
-            constantTimeEquals(savedHash, enteredHash)
-        ) {
+        if (savedHash != null && constantTimeEquals(savedHash, sha256(pin))) {
             cancelPinRequest()
-
             speak("जी सर, PIN सही है। API सेटिंग खोल रहा हूँ।")
-
             handler.postDelayed({
                 if (!running) return@postDelayed
-
                 try {
-                    val intent = Intent(
-                        this,
-                        JarvisApiSettings::class.java
-                    ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-
-                    startActivity(intent)
+                    startActivity(
+                        Intent(this, JarvisApiSettings::class.java)
+                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
                 } catch (_: Exception) {
                     speak("जी सर, API सेटिंग नहीं खुल सकी।")
                 }
             }, 1200)
-        } else {
-            recordFailedPin()
-        }
+        } else recordFailedPin()
     }
 
     private fun recordFailedPin() {
         pinAttempts++
-
         if (pinAttempts >= 3) {
             cancelPinRequest()
             speak("जी सर, तीन बार गलत PIN बोला गया। API सेटिंग नहीं खुलेगी।")
-        } else {
-            speak("PIN सही से पहचान नहीं पाया। कृपया चार से छह अंक साफ बोलिए।")
-        }
+        } else speak("PIN सही से पहचान नहीं पाया। कृपया चार से छह अंक साफ बोलिए।")
     }
 
     private fun cancelPinRequest() {
@@ -424,31 +317,18 @@ class JarvisVoiceService : Service(), RecognitionListener {
     private fun sha256(value: String): String {
         val bytes = MessageDigest.getInstance("SHA-256")
             .digest(value.toByteArray(Charsets.UTF_8))
-
-        return bytes.joinToString("") {
-            "%02x".format(it)
-        }
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 
-    private fun constantTimeEquals(a: String, b: String): Boolean {
-        return MessageDigest.isEqual(
-            a.toByteArray(Charsets.UTF_8),
-            b.toByteArray(Charsets.UTF_8)
-        )
-    }
+    private fun constantTimeEquals(a: String, b: String): Boolean =
+        MessageDigest.isEqual(a.toByteArray(Charsets.UTF_8), b.toByteArray(Charsets.UTF_8))
 
     private fun convertSpeechToPin(text: String): String {
         val cleaned = text.lowercase(Locale.ROOT)
-            .replace(Regex("[,;.!?]"), " ")
-            .trim()
-
-        if (cleaned.matches(Regex("[0-9\\s-]+"))) {
-            return cleaned.filter { it.isDigit() }
-        }
-
+            .replace(Regex("[,;.!?]"), " ").trim()
+        if (cleaned.matches(Regex("[0-9\\s-]+"))) return cleaned.filter { it.isDigit() }
         val digits = mapOf(
-            "शून्य" to "0", "जीरो" to "0", "ज़ीरो" to "0",
-            "zero" to "0", "oh" to "0",
+            "शून्य" to "0", "जीरो" to "0", "ज़ीरो" to "0", "zero" to "0", "oh" to "0",
             "एक" to "1", "इक" to "1", "one" to "1",
             "दो" to "2", "टू" to "2", "two" to "2",
             "तीन" to "3", "थ्री" to "3", "three" to "3",
@@ -459,98 +339,47 @@ class JarvisVoiceService : Service(), RecognitionListener {
             "आठ" to "8", "एट" to "8", "eight" to "8",
             "नौ" to "9", "नाइन" to "9", "nine" to "9"
         )
-
-        val tokens = cleaned.split(Regex("\\s+"))
         val output = StringBuilder()
-
-        for (token in tokens) {
+        for (token in cleaned.split(Regex("\\s+"))) {
             val digit = digits[token]
-            if (digit != null) {
-                output.append(digit)
-            } else if (token.all { it.isDigit() }) {
-                output.append(token)
-            } else {
-                return ""
-            }
+            if (digit != null) output.append(digit)
+            else if (token.all { it.isDigit() }) output.append(token)
+            else return ""
         }
-
         return output.toString()
-    }
-
-    private fun askOnlineAI(question: String) {
-        if (processingOnline) return
-
-        processingOnline = true
-        listening = false
-
-        restartTask?.let { handler.removeCallbacks(it) }
-        recognizer?.cancel()
-
-        speak("जी सर, आपके सवाल का जवाब खोज रहा हूँ।")
-
-        handler.postDelayed({
-            if (!running) return@postDelayed
-
-            serviceScope.launch {
-                val answer = JarvisOnlineBrain.ask(
-                    this@JarvisVoiceService,
-                    question
-                )
-
-                if (!running) return@launch
-
-                processingOnline = false
-                speak(answer)
-            }
-        }, 1200)
     }
 
     private fun speak(message: String) {
         if (!ttsReady) {
             speaking = false
-            if (running && !processingOnline) {
-                scheduleListening(1000)
-            }
+            if (running && !processingOnline) scheduleListening(1000)
             return
         }
-
         speaking = true
         listening = false
-
         restartTask?.let { handler.removeCallbacks(it) }
         recognizer?.cancel()
         applyVoiceSettings()
-
-        tts?.setOnUtteranceProgressListener(
-            object : UtteranceProgressListener() {
-                override fun onStart(id: String?) {}
-
-                override fun onDone(id: String?) {
-                    handler.post {
-                        speaking = false
-                        if (running && !processingOnline) {
-                            scheduleListening(600)
-                        }
-                    }
-                }
-
-                override fun onError(id: String?) {
-                    handler.post {
-                        speaking = false
-                        if (running && !processingOnline) {
-                            scheduleListening(1000)
-                        }
+        tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
+            override fun onStart(id: String?) {}
+            override fun onDone(id: String?) {
+                handler.post {
+                    speaking = false
+                    if (running && !processingOnline) {
+                        if (awaitingApiPin) startListening() else scheduleListening(600)
                     }
                 }
             }
-        )
-
-        tts?.speak(
-            message,
-            TextToSpeech.QUEUE_FLUSH,
-            null,
-            "jarvis_reply"
-        )
+            override fun onError(id: String?) {
+                handler.post {
+                    speaking = false
+                    if (running && !processingOnline) {
+                        if (awaitingApiPin) startListening() else scheduleListening(1000)
+                    }
+                }
+            }
+        })
+        tts?.speak(message, TextToSpeech.QUEUE_FLUSH, null, "jarvis_reply")
     }
 
     override fun onDestroy() {
@@ -558,21 +387,16 @@ class JarvisVoiceService : Service(), RecognitionListener {
         listening = false
         processingOnline = false
         awaitingApiPin = false
-
         handler.removeCallbacks(pinTimeoutTask)
         restartTask?.let { handler.removeCallbacks(it) }
         handler.removeCallbacksAndMessages(null)
-
         serviceScope.cancel()
-
         recognizer?.cancel()
         recognizer?.destroy()
         recognizer = null
-
         tts?.stop()
         tts?.shutdown()
         tts = null
-
         super.onDestroy()
     }
 
